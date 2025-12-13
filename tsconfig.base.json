@@ -12,9 +12,13 @@
     "module": "esnext",
     "lib": ["es2020", "dom"],
     "skipLibCheck": true,
+    "strict": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@eventix/shared-dto": ["libs/shared-dto/src/index.ts"],
+      "@eventix/shared-constants": ["libs/shared-constants/src/index.ts"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }
