@@ -1,0 +1,264 @@
+# Kafka/Redpanda Event Schemas
+# Event-driven communication between microservices
+
+asyncapi: 2.6.0
+info:
+  title: Eventix Event Bus
+  version: 1.0.0
+  description: Event schemas for inter-service communication via Redpanda
+
+servers:
+  development:
+    url: localhost:9092
+    protocol: kafka
+    description: Local Redpanda instance
+
+channels:
+  booking.created:
+    description: Emitted when a new booking is created with RESERVED status
+    publish:
+      operationId: onBookingCreated
+      message:
+        $ref: '#/components/messages/BookingCreated'
+    subscribe:
+      operationId: publishBookingCreated
+      message:
+        $ref: '#/components/messages/BookingCreated'
+
+  booking.cancelled:
+    description: Emitted when a booking is cancelled (by user, timeout, or payment failure)
+    publish:
+      operationId: onBookingCancelled
+      message:
+        $ref: '#/components/messages/BookingCancelled'
+    subscribe:
+      operationId: publishBookingCancelled
+      message:
+        $ref: '#/components/messages/BookingCancelled'
+
+  payment.success:
+    description: Emitted when payment processing succeeds
+    publish:
+      operationId: onPaymentSuccess
+      message:
+        $ref: '#/components/messages/PaymentSuccess'
+    subscribe:
+      operationId: publishPaymentSuccess
+      message:
+        $ref: '#/components/messages/PaymentSuccess'
+
+  payment.failed:
+    description: Emitted when payment processing fails
+    publish:
+      operationId: onPaymentFailed
+      message:
+        $ref: '#/components/messages/PaymentFailed'
+    subscribe:
+      operationId: publishPaymentFailed
+      message:
+        $ref: '#/components/messages/PaymentFailed'
+
+components:
+  messages:
+    BookingCreated:
+      name: BookingCreated
+      title: Booking Created Event
+      summary: A new booking has been created and is awaiting payment
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/BookingCreatedPayload'
+
+    BookingCancelled:
+      name: BookingCancelled
+      title: Booking Cancelled Event
+      summary: A booking has been cancelled
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/BookingCancelledPayload'
+
+    PaymentSuccess:
+      name: PaymentSuccess
+      title: Payment Success Event
+      summary: Payment has been processed successfully
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PaymentSuccessPayload'
+
+    PaymentFailed:
+      name: PaymentFailed
+      title: Payment Failed Event
+      summary: Payment processing has failed
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PaymentFailedPayload'
+
+  schemas:
+    # ============== BOOKING EVENTS ==============
+    BookingCreatedPayload:
+      type: object
+      required:
+        - bookingId
+        - userId
+        - eventId
+        - amount
+        - seatIds
+        - expiresAt
+        - timestamp
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          description: Unique identifier for the booking
+        userId:
+          type: string
+          description: Auth0 user ID (sub claim)
+        eventId:
+          type: string
+          format: uuid
+          description: Reference to the event
+        amount:
+          type: number
+          format: decimal
+          description: Total booking amount in USD
+        seatIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of reserved seat IDs
+        expiresAt:
+          type: string
+          format: date-time
+          description: Reservation expiration timestamp
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+
+    BookingCancelledPayload:
+      type: object
+      required:
+        - bookingId
+        - eventId
+        - seatIds
+        - reason
+        - timestamp
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          description: Unique identifier for the booking
+        eventId:
+          type: string
+          format: uuid
+          description: Reference to the event
+        seatIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of released seat IDs
+        reason:
+          type: string
+          enum:
+            - USER_CANCELLED
+            - RESERVATION_EXPIRED
+            - PAYMENT_FAILED
+          description: Reason for cancellation
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+
+    # ============== PAYMENT EVENTS ==============
+    PaymentSuccessPayload:
+      type: object
+      required:
+        - bookingId
+        - transactionId
+        - amount
+        - timestamp
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          description: Reference to the booking
+        transactionId:
+          type: string
+          description: External payment transaction ID
+        amount:
+          type: number
+          format: decimal
+          description: Payment amount in USD
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+
+    PaymentFailedPayload:
+      type: object
+      required:
+        - bookingId
+        - reason
+        - timestamp
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          description: Reference to the booking
+        transactionId:
+          type: string
+          description: External payment transaction ID (if available)
+        reason:
+          type: string
+          description: Reason for payment failure
+        errorCode:
+          type: string
+          description: Payment provider error code
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+
+# Topic Configuration
+x-topics:
+  booking.created:
+    partitions: 6
+    replicationFactor: 1
+    config:
+      retention.ms: 604800000  # 7 days
+      cleanup.policy: delete
+
+  booking.cancelled:
+    partitions: 6
+    replicationFactor: 1
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  payment.success:
+    partitions: 6
+    replicationFactor: 1
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+  payment.failed:
+    partitions: 6
+    replicationFactor: 1
+    config:
+      retention.ms: 604800000
+      cleanup.policy: delete
+
+# Consumer Groups
+x-consumer-groups:
+  booking-service-consumer:
+    topics:
+      - payment.success
+      - payment.failed
+    description: Booking service consumes payment events to update booking status
+
+  payment-service-consumer:
+    topics:
+      - booking.created
+    description: Payment service consumes booking events to process payments

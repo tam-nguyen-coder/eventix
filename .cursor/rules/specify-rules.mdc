@@ -1,0 +1,29 @@
+# eventix Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2025-12-11
+
+## Active Technologies
+
+- TypeScript (Node.js 20 LTS) + NestJS (framework), Nx (monorepo), TypeORM (ORM), Auth0 (authentication), Redpanda (message broker) (001-event-booking-system)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+npm test && npm run lint
+
+## Code Style
+
+TypeScript (Node.js 20 LTS): Follow standard conventions
+
+## Recent Changes
+
+- 001-event-booking-system: Added TypeScript (Node.js 20 LTS) + NestJS (framework), Nx (monorepo), TypeORM (ORM), Auth0 (authentication), Redpanda (message broker)
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

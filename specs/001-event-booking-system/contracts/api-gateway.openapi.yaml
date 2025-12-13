@@ -1,0 +1,762 @@
+openapi: 3.0.3
+info:
+  title: Eventix API Gateway
+  description: Public API for the Event Booking System
+  version: 1.0.0
+  contact:
+    name: Eventix Team
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+  - url: https://api.eventix.com/v1
+    description: Production
+
+tags:
+  - name: Events
+    description: Event catalog operations
+  - name: Venues
+    description: Venue management (Admin only)
+  - name: Bookings
+    description: Booking operations
+  - name: Auth
+    description: Authentication
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ============== EVENTS ==============
+  /events:
+    get:
+      tags: [Events]
+      summary: List events
+      description: Get a paginated list of published events. Public endpoint.
+      security: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/EventStatus'
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    post:
+      tags: [Events]
+      summary: Create event
+      description: Create a new event. Admin only.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /events/{eventId}:
+    get:
+      tags: [Events]
+      summary: Get event details
+      description: Get event details including seat availability. Public endpoint.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/{eventId}/seats:
+    get:
+      tags: [Events]
+      summary: Get seat availability
+      description: Get seat map with availability status for an event. Public endpoint.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Seat availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeatAvailabilityResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============== VENUES ==============
+  /venues:
+    get:
+      tags: [Venues]
+      summary: List venues
+      description: Get all venues. Admin only.
+      responses:
+        '200':
+          description: List of venues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VenueResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Venues]
+      summary: Create venue
+      description: Create a new venue with seat layout. Admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVenueRequest'
+      responses:
+        '201':
+          description: Venue created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /venues/{venueId}:
+    get:
+      tags: [Venues]
+      summary: Get venue details
+      description: Get venue details with seat layout. Admin only.
+      parameters:
+        - $ref: '#/components/parameters/VenueId'
+      responses:
+        '200':
+          description: Venue details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VenueDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============== BOOKINGS ==============
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: Get booking history
+      description: Get current user's booking history.
+      responses:
+        '200':
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Bookings]
+      summary: Create booking (reserve seats)
+      description: Reserve seats for an event. Creates a 10-minute reservation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '201':
+          description: Booking created (RESERVED status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Seats no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /bookings/{bookingId}:
+    get:
+      tags: [Bookings]
+      summary: Get booking details
+      description: Get booking details including ticket if confirmed.
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Bookings]
+      summary: Cancel booking
+      description: Cancel a confirmed or reserved booking.
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Booking cannot be cancelled (already cancelled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /bookings/{bookingId}/pay:
+    post:
+      tags: [Bookings]
+      summary: Process payment
+      description: Process payment for a reserved booking.
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Booking expired or already paid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0 JWT token
+
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    VenueId:
+      name: venueId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ============== COMMON ==============
+    ErrorResponse:
+      type: object
+      required:
+        - statusCode
+        - error
+        - message
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: BAD_REQUEST
+        message:
+          type: string
+          example: Validation failed
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    SeatType:
+      type: string
+      enum: [VIP, REGULAR, ECONOMY]
+
+    EventStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, CANCELLED, COMPLETED]
+
+    BookingStatus:
+      type: string
+      enum: [RESERVED, CONFIRMED, CANCELLED]
+
+    SeatStatus:
+      type: string
+      enum: [AVAILABLE, RESERVED, CONFIRMED]
+
+    # ============== EVENTS ==============
+    CreateEventRequest:
+      type: object
+      required:
+        - venueId
+        - name
+        - startTime
+        - endTime
+        - pricing
+      properties:
+        venueId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        category:
+          type: string
+          maxLength: 100
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        pricing:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatPricing'
+
+    SeatPricing:
+      type: object
+      required:
+        - seatType
+        - price
+      properties:
+        seatType:
+          $ref: '#/components/schemas/SeatType'
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+
+    EventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        venueId:
+          type: string
+          format: uuid
+        venueName:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/EventStatus'
+        pricing:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatPricing'
+        availableSeats:
+          type: integer
+
+    EventDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/EventResponse'
+        - type: object
+          properties:
+            venue:
+              $ref: '#/components/schemas/VenueResponse'
+
+    PaginatedEventsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventResponse'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    # ============== VENUES ==============
+    CreateVenueRequest:
+      type: object
+      required:
+        - name
+        - seatLayout
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        location:
+          type: string
+          maxLength: 500
+        seatLayout:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatLayoutRow'
+
+    SeatLayoutRow:
+      type: object
+      required:
+        - row
+        - startNumber
+        - endNumber
+        - seatType
+      properties:
+        row:
+          type: string
+          maxLength: 10
+          example: "A"
+        startNumber:
+          type: integer
+          minimum: 1
+          example: 1
+        endNumber:
+          type: integer
+          minimum: 1
+          example: 20
+        seatType:
+          $ref: '#/components/schemas/SeatType'
+
+    VenueResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        location:
+          type: string
+        totalSeats:
+          type: integer
+
+    VenueDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/VenueResponse'
+        - type: object
+          properties:
+            seats:
+              type: array
+              items:
+                $ref: '#/components/schemas/SeatResponse'
+
+    SeatResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        row:
+          type: string
+        number:
+          type: integer
+        seatType:
+          $ref: '#/components/schemas/SeatType'
+
+    # ============== SEAT AVAILABILITY ==============
+    SeatAvailabilityResponse:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatAvailability'
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            available:
+              type: integer
+            reserved:
+              type: integer
+            confirmed:
+              type: integer
+
+    SeatAvailability:
+      type: object
+      properties:
+        seatId:
+          type: string
+          format: uuid
+        row:
+          type: string
+        number:
+          type: integer
+        seatType:
+          $ref: '#/components/schemas/SeatType'
+        status:
+          $ref: '#/components/schemas/SeatStatus'
+        price:
+          type: number
+          format: decimal
+
+    # ============== BOOKINGS ==============
+    CreateBookingRequest:
+      type: object
+      required:
+        - eventId
+        - seatIds
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        seatIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+
+    BookingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        eventName:
+          type: string
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        totalAmount:
+          type: number
+          format: decimal
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingItemResponse'
+
+    BookingItemResponse:
+      type: object
+      properties:
+        seatId:
+          type: string
+          format: uuid
+        row:
+          type: string
+        number:
+          type: integer
+        seatType:
+          $ref: '#/components/schemas/SeatType'
+        price:
+          type: number
+          format: decimal
+
+    BookingDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/BookingResponse'
+        - type: object
+          properties:
+            ticket:
+              $ref: '#/components/schemas/TicketResponse'
+
+    TicketResponse:
+      type: object
+      properties:
+        qrCodeReference:
+          type: string
+          description: Reference code for QR code generation
+        confirmedAt:
+          type: string
+          format: date-time
+
+    # ============== PAYMENTS ==============
+    PaymentRequest:
+      type: object
+      required:
+        - paymentMethod
+      properties:
+        paymentMethod:
+          type: string
+          enum: [MOCK_SUCCESS, MOCK_FAIL]
+          description: Mock payment method for simulation
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        transactionId:
+          type: string
+        amount:
+          type: number
+          format: decimal
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        processedAt:
+          type: string
+          format: date-time
